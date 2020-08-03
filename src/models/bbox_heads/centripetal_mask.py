@@ -16,7 +16,7 @@ from mmdet.core.corner.kp_utils import _decode_center
 from ..registry import HEADS
 from ..utils import ConvModule
 
-
+# 检测头类
 @HEADS.register_module
 class Centripetal_mask(nn.Module):
 
@@ -27,6 +27,7 @@ class Centripetal_mask(nn.Module):
         self.num_classes = num_classes - 1
         self.in_channels = in_channels
 
+        # tl和br两个分支的输出维度
         self.tl_out_channels = self.num_classes + 2 + 2  # 2 is the dim for offset map, as there are 2 coordinates, x,y
         self.br_out_channels = self.num_classes + 2 + 2
         
@@ -110,9 +111,12 @@ class Centripetal_mask(nn.Module):
         normal_init(self.mid_br_fadp  , std=0.01)
 
 
+    # 前馈过程
     def forward_single(self, feats):
         '''tl_result = self.tl_branch(x)
         br_result = self.br_branch(x)'''
+        
+        # 最后一层
         x = feats[-1]
         mask = None
         mask_mid = None        
@@ -122,12 +126,23 @@ class Centripetal_mask(nn.Module):
                 mask = conv(mask)
             mask = self.conv_logits(mask)
 
+        # 左上pooling
         tl_pool = self.tl_pool(x)
+        
+        # 1.1. 左上heatmap
         tl_heat = self.tl_heat(tl_pool)
-        tl_off_c = self.tl_off_c(tl_pool)
+        
+        # 1.2. 左上点offsets
         tl_off = self.tl_off(tl_pool)
+        
+        # 1.3. 左上点centropetal shift
+            # 指导向量
+        tl_off_c = self.tl_off_c(tl_pool)
+            # 偏执场
         tl_offmap = self.tl_offset(tl_off_c.detach())
+            # cross-star卷积
         x_tl_fadp = self.tl_fadp(tl_pool, tl_offmap)
+            # shift预测
         tl_off_c_2= self.tl_off_c_2(x_tl_fadp)
 
 
@@ -142,6 +157,7 @@ class Centripetal_mask(nn.Module):
         tl_result = torch.cat([tl_heat, tl_off_c, tl_off_c_2, tl_off], 1)
         br_result = torch.cat([br_heat, br_off_c, br_off_c_2, br_off], 1)
 
+        # 第一层
         x = feats[0]
         
         if self.with_mask:
@@ -253,6 +269,7 @@ class Centripetal_mask(nn.Module):
         else:
             return dict(det_loss=det_loss, off_c_loss=off_c_loss, off_c2_loss=off_c2_loss, off_loss=off_loss)
 
+    # 配对？
     def get_bboxes(self, tl_result, br_result, mask, mid_tl_result, mid_br_result, mid_mask, img_metas, cfg, rescale=False):
         tl_heat = tl_result[:, :self.num_classes, :, :]
         tl_off_c= tl_result[:, self.num_classes+2:self.num_classes+4, :, :]
