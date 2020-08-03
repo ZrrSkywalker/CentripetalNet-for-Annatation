@@ -39,10 +39,14 @@ class CentripetalNet(BaseDetector, MaskTestMixin_kpt):
                  test_cfg=None,
                  pretrained=None):
         super(CentripetalNet, self).__init__()
+# 主干网络
         self.backbone = builder.build_backbone(backbone)       
+# FPN结构
         if neck is not None:
             self.neck = builder.build_neck(neck)
+# 检测头
         self.bbox_head = builder.build_head(bbox_head)
+           
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
         self.init_weights(pretrained=pretrained)
